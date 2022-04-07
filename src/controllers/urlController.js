@@ -2,6 +2,8 @@ const validUrl = require('valid-url');
 const shortid = require('shortid')
 const UrlModel = require('../models/urlModel')
 const baseUrl = 'http://localhost:3000'
+
+
 const redis = require("redis");
 
 const { promisify } = require("util");
@@ -53,6 +55,13 @@ const createUrl = async function (req, res) {
             return res.status(400).send({ status: false, msg: "longurl is not valid" })
         }
 
+        // let URL = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/
+
+        // //Validation of longUrl----------------------           
+        // if (!URL.test(longUrl)) {
+        //     return res.status(400).send({ status: false, message: "longurl is not valid please provide valid url like http,www,https" })
+        // }
+
 
         //Generate urlCode---------------------
 
@@ -103,9 +112,12 @@ const createUrl = async function (req, res) {
 const getUrl = async function (req, res) {
     try {
         //  check in cache in redis----------------
-        let checkUrl = await GET_ASYNC(`${req.params.urlCode}`)
+        let checkUrl = await GET_ASYNC(`${req.params.urlCode})`)
         console.log('fetch from redis')
         console.log(checkUrl)
+        if (!isValid(checkUrl)) {
+            return res.status(400).send({ status: false, message: ' invalid Please provide valid urlCode' })
+        }
 
         //  check in database----------------------
         let url = await UrlModel.findOne({ urlCode: req.params.urlCode })
