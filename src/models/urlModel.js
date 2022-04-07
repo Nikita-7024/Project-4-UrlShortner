@@ -17,11 +17,11 @@ const UrlSchema = new mongoose.Schema({
     required: true,
     trim: true,
     unique: true
-  },
-  date: {
-    type: String,
-    default: Date.now
   }
-}, { timestamps: true });
+  // date: {
+  //   type: String,
+  //   default: Date.now
+  // }
+});
 
 module.exports = mongoose.model('Url', UrlSchema);
