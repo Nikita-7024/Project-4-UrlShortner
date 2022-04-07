@@ -7,7 +7,8 @@ const redis = require("redis");
 const { promisify } = require("util");
 
 
-//Connect to redis
+//Connect to redis-----------------------------
+
 const redisClient = redis.createClient(
     14290,
     "redis-14290.c212.ap-south-1-1.ec2.cloud.redislabs.com",
@@ -20,6 +21,10 @@ redisClient.auth("nRzXpG7VrqiZNwTtclo1Wct0Uh21bGZC", function (err) {
 redisClient.on("connect", async function () {
     console.log("Connected to Redis..");
 });
+// use redis to set and get-------------------------
+
+const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
+const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
 
 const isValid = function (value) {
     if (typeof (value) === 'undefined' || typeof (value) === 'null') { return false }
@@ -30,13 +35,11 @@ const isValid = function (value) {
 const isValidRequestBody = function (requestBody) {
     return Object.keys(requestBody).length > 0
 }
-const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
-const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
 
 const createUrl = async function (req, res) {
 
     try {
-        const longUrl = req.body.longUrl
+        const longUrl = req.body.longUrl.trim()
 
         if (!isValidRequestBody(req.body)) {
             res.status(400).send({ status: false, message: 'Invalid request parameters. Please provide URL details' })
@@ -51,12 +54,20 @@ const createUrl = async function (req, res) {
         }
 
 
+        //Generate urlCode---------------------
 
-        //---GENERATE URLCODE
         let urlCode = shortid.generate().match(/[a-z\A-Z]/g).join("")
         urlCode = urlCode.toLowerCase()
 
-        await GET_ASYNC(`${req.body.longUrl.trim()}`)
+        //Fetch the data in redis-------------
+
+        let checkUrl = await GET_ASYNC(`${longUrl}`)
+
+        if (checkUrl) {
+            return res.status(200).send({ status: true, "data": JSON.parse(checkUrl) })
+        }
+
+        //if data not found in caches find in MongoDb---------------------------
 
         let url = await UrlModel.findOne({ longUrl }).select({ _id: 0 })
 
@@ -64,14 +75,23 @@ const createUrl = async function (req, res) {
             return res.status(200).send({ status: true, message: 'success', 'data': url })
         }
 
-        //---GENERATE DATA BY LONG URL
+        //GENERATE DATA BY LONG URL-----------------------------
+
         const shortUrl = baseUrl + '/' + urlCode
         const urlData = { urlCode, longUrl, shortUrl }
 
-        await SET_ASYNC(`${req.body.urlData}`, JSON.stringify(urlData))
-
         const newurl = await UrlModel.create(urlData);
-        return res.status(201).send({ status: true, msg: `URL created successfully`, data: newurl });
+
+        let longurl = newurl.longUrl
+        let shorturl = newurl.shortUrl
+        let urlcode = newurl.urlCode
+        let data = ({ longurl, shorturl, urlcode })
+
+        //SET GENERATE DATA IN CACHE-------------------------------
+        await SET_ASYNC(`${longUrl}`, JSON.stringify(newurl))
+
+        return res.status(201).send({ status: true, msg: `URL created successfully`, data: data });
+
     } catch (err) {
         return res.status(500).send({ msg: err.message })
     }
@@ -81,30 +101,27 @@ const createUrl = async function (req, res) {
 
 
 const getUrl = async function (req, res) {
-
     try {
-        let url = await GET_ASYNC(`${req.params.urlCode}`)
-        console.log("found in redis")
-        console.log(url)
+        //  check in cache in redis----------------
+        let checkUrl = await GET_ASYNC(`${req.params.urlCode}`)
+        console.log('fetch from redis')
+        console.log(checkUrl)
 
-        const newUrl = await UrlModel.findOne({ urlCode: req.params.urlCode })
+        //  check in database----------------------
+        let url = await UrlModel.findOne({ urlCode: req.params.urlCode })
 
-        if (!newUrl) {
-
-            return res.status(404).send({ status: false, message: "Sorry, URL not found" })
-
+        if (!url) {
+            return res.status(404).send({ status: false, message: 'sorry!, URL not Found' })
         }
 
-        await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(newUrl))
-
-        return res.status(302).redirect(newUrl.longUrl)
-
+        await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(url))
+        return res.status(302).redirect(url.longUrl)
 
     } catch (err) {
-        return res.status(500).send({ msg: err.message })
+
+        res.status(500).send({ msg: err.message })
     }
 }
-
 
 
 module.exports.createUrl = createUrl;
