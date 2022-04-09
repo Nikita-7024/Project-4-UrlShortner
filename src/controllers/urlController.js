@@ -110,31 +110,37 @@ const createUrl = async function (req, res) {
 
 
 const getUrl = async function (req, res) {
+
     try {
-        //  check in cache in redis----------------
-        let checkUrl = await GET_ASYNC(`${req.params.urlCode})`)
-        console.log('fetch from redis')
-        console.log(checkUrl)
-        if (!isValid(checkUrl)) {
-            return res.status(400).send({ status: false, message: ' invalid Please provide valid urlCode' })
+
+        let urlcode = await GET_ASYNC(`${req.params.urlCode.trim()}`)
+
+        console.log(urlcode)
+
+        //    if(!isValid(urlcode)){
+
+        //        return res.status(400).send({status:false, message:"invalid request"})
+
+        //    }
+
+
+
+        const code = await UrlModel.findOne({ urlCode: req.params.urlCode })
+
+        if (!code) {
+
+            return res.status(404).send({ status: false, message: "Sorry, URL not found" })
+
         }
 
-        //  check in database----------------------
-        let url = await UrlModel.findOne({ urlCode: req.params.urlCode })
+        await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(code))
 
-        if (!url) {
-            return res.status(404).send({ status: false, message: 'sorry!, URL not Found' })
-        }
-
-        await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(url))
-        return res.status(302).redirect(url.longUrl)
-
-    } catch (err) {
-
-        res.status(500).send({ msg: err.message })
+        return res.status(302).redirect(code.longUrl)
+    }catch (err) {
+        return res.status(500).send({ msg: err.message })
     }
-}
 
+}
 
 module.exports.createUrl = createUrl;
 module.exports.getUrl = getUrl;
