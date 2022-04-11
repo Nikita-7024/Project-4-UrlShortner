@@ -97,7 +97,7 @@ const createUrl = async function (req, res) {
         let data = ({ longurl, shorturl, urlcode })
 
         //SET GENERATE DATA IN CACHE-------------------------------
-        await SET_ASYNC(`${longUrl}`, JSON.stringify(newurl))
+        await SET_ASYNC(`${longUrl}`, JSON.stringify(newurl), "EX", 50)
 
         return res.status(201).send({ status: true, msg: `URL created successfully`, data: data });
 
@@ -133,7 +133,7 @@ const getUrl = async function (req, res) {
 
         }
 
-        await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(code))
+        await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(code), "EX", 50)
 
         return res.status(302).redirect(code.longUrl)
     }catch (err) {
